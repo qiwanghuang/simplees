@@ -130,6 +130,38 @@ def search_products(db: Session, keyword: str, page: int, size: int) -> tuple[li
     return products, total
 
 
+def list_products(db: Session, page: int, size: int) -> tuple[list[Product], int]:
+    """分页查询商品列表：直接查询 SQLite，不走 ES。"""
+
+    page = normalize_page(page)
+    size = normalize_size(size)
+
+    # SQL 分页参数：
+    # offset 表示跳过多少条，limit 表示本次最多返回多少条。
+    offset = (page - 1) * size
+
+    base_query = (
+        db.query(Product)
+        .options(
+            joinedload(Product.brand),
+            joinedload(Product.category),
+        )
+        .filter(Product.status != "deleted")
+    )
+
+    total = base_query.count()
+
+    products = (
+        base_query
+        .order_by(Product.created_at.desc())
+        .offset(offset)
+        .limit(size)
+        .all()
+    )
+
+    return products, total
+
+
 def get_product_by_id(db: Session, product_id: str) -> Product | None:
     """根据商品 UUID 查询商品详情。"""
 

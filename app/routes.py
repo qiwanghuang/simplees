@@ -3,10 +3,36 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas import ProductDetail, ProductSearchResponse
-from app.services import get_product_by_id, normalize_size, search_products
+from app.services import get_product_by_id, list_products, normalize_size, search_products
 
 
 router = APIRouter(prefix="/api/products", tags=["products"])
+
+
+@router.get("", response_model=ProductSearchResponse)
+def list_product_api(
+    page: int = Query(1, ge=1, description="页码，从 1 开始"),
+    size: int = Query(10, ge=1, description="每页数量"),
+    db: Session = Depends(get_db),
+):
+    """商品分页列表接口：直接查询 SQLite，不走 ES。"""
+
+    # 普通列表不是搜索场景，所以直接查数据库。
+    # size 仍然要做上限控制，避免一次请求返回太多商品。
+    normalized_size = normalize_size(size)
+
+    products, total = list_products(
+        db=db,
+        page=page,
+        size=normalized_size,
+    )
+
+    return {
+        "items": products,
+        "total": total,
+        "page": page,
+        "size": normalized_size,
+    }
 
 
 @router.get("/search", response_model=ProductSearchResponse)
