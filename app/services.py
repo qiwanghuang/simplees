@@ -26,9 +26,23 @@ def normalize_size(size: int) -> int:
     return size
 
 
+def normalize_keyword(keyword: str) -> str:
+    """清理搜索关键词，去掉前后空格。"""
+
+    return keyword.strip()
+
+
+def compact_keyword(keyword: str) -> str:
+    """去掉关键词中的空白字符，用于商品名精确包含匹配。"""
+
+    return "".join(keyword.split())
+
+
 def search_product_ids_from_es(keyword: str, page: int, size: int) -> tuple[list[str], int]:
     """从 ES 搜索商品 UUID。"""
 
+    keyword = normalize_keyword(keyword)
+    exact_keyword = compact_keyword(keyword)
     page = normalize_page(page)
     size = normalize_size(size)
 
@@ -40,22 +54,37 @@ def search_product_ids_from_es(keyword: str, page: int, size: int) -> tuple[list
         index=settings.es_product_index,
         query={
             "bool": {
-                "must": [
+                "should": [
+                    {
+                        # 强匹配：商品名称中直接包含用户输入的完整关键词时，优先返回。
+                        # 例如“小米手机”只会匹配商品名里连续出现“小米手机”的商品。
+                        "wildcard": {
+                            "product_name.keyword": {
+                                "value": f"*{exact_keyword}*",
+                                "boost": 10,
+                            }
+                        }
+                    },
                     {
                         "multi_match": {
                             # 用户输入的搜索关键词。
                             "query": keyword,
 
-                            # 商品名权重最高，品牌名和类目名次之，组合字段兜底。
+                            # AND 表示分词后的内容都要命中。
+                            # 这样“小米手机”不会只因为命中“小米”或“手机”就返回。
+                            "operator": "and",
+
+                            # 商品名权重最高，组合字段兜底。
                             "fields": [
                                 "product_name^3",
-                                "brand_name^2",
-                                "category_name^2",
                                 "search_text",
                             ],
                         }
                     }
                 ],
+                # 至少满足一个 should 条件。
+                # 也就是要么商品名完整包含关键词，要么分词后全部命中。
+                "minimum_should_match": 1,
                 "filter": [
                     {
                         # 只搜索上架商品。
