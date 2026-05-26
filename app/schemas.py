@@ -63,3 +63,30 @@ class ProductSearchResponse(BaseModel):
     total: int
     page: int
     size: int
+
+class ProductUpdateRequest(BaseModel):
+    """商品更新接口的请求结构。"""
+
+    # 商品名称。
+    name: str
+
+    # 商品描述，可以为空。
+    description: str | None = None
+
+    # 商品价格，可以为空。
+    price: Decimal | None = None
+
+    # 商品所属品牌 UUID。
+    brand_id: str
+
+    # 商品所属类目 UUID。
+    category_id: str
+
+    # 商品状态：active=上架，inactive=下架，deleted=已删除。
+    status: str
+
+
+class MessageResponse(BaseModel):
+    """通用消息返回结构。"""
+
+    message: str

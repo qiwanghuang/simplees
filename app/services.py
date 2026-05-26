@@ -1,8 +1,10 @@
+from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.es_client import es_client
 from app.models import Product
+from app.schemas import ProductUpdateRequest
 
 
 def normalize_page(page: int) -> int:
@@ -190,6 +192,54 @@ def list_products(db: Session, page: int, size: int) -> tuple[list[Product], int
 
     return products, total
 
+def update_product(db: Session, product_id: str, request: ProductUpdateRequest) -> Product | None:
+    """更新商品数据库数据。"""
+
+    product = get_product_by_id(
+        db=db,
+        product_id=product_id,
+    )
+
+    if product is None:
+        return None
+
+    # 用请求参数覆盖商品字段。
+    product.name = request.name
+    product.description = request.description
+    product.price = request.price
+    product.brand_id = request.brand_id
+    product.category_id = request.category_id
+    product.status = request.status
+    product.updated_at = datetime.now()
+
+    db.commit()
+    db.refresh(product)
+
+    return get_product_by_id(
+        db=db,
+        product_id=product_id,
+    )
+
+
+def delete_product(db: Session, product_id: str) -> bool:
+    """软删除商品。"""
+
+    product = get_product_by_id(
+        db=db,
+        product_id=product_id,
+    )
+
+    if product is None:
+        return False
+
+    # 这里不物理删除数据库记录，而是把状态改成 deleted。
+    # 这样以后还能保留历史数据。
+    product.status = "deleted"
+    product.updated_at = datetime.now()
+
+    db.commit()
+
+    return True
 
 def get_product_by_id(db: Session, product_id: str) -> Product | None:
     """根据商品 UUID 查询商品详情。"""
