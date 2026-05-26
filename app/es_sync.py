@@ -1,4 +1,4 @@
-from sqlalchemy.orm import joinedload, Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import SessionLocal
@@ -61,6 +61,7 @@ def sync_product_to_es(product: Product) -> None:
         document=build_product_document(product),
     )
 
+
 def sync_product_by_id_to_es(db: Session, product_id: str) -> None:
     """根据商品 UUID 重新查询数据库，并把最新商品数据同步到 ES。"""
 
@@ -85,6 +86,7 @@ def sync_product_by_id_to_es(db: Session, product_id: str) -> None:
 
     # 如果商品还在数据库里，就按最新数据库数据覆盖 ES 文档。
     sync_product_to_es(product)
+
 
 def sync_all_products_to_es() -> None:
     """把数据库里所有商品同步到 ES。"""

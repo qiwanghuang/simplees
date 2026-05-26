@@ -64,6 +64,7 @@ class ProductSearchResponse(BaseModel):
     page: int
     size: int
 
+
 class ProductUpdateRequest(BaseModel):
     """商品更新接口的请求结构。"""
 

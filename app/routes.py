@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.es_sync import sync_product_by_id_to_es
 from app.schemas import MessageResponse, ProductDetail, ProductSearchResponse, ProductUpdateRequest
 from app.services import delete_product, get_product_by_id, list_products, normalize_size, search_products, update_product
-from app.es_sync import sync_product_by_id_to_es
 
 
 router = APIRouter(prefix="/api/products", tags=["products"])
@@ -82,6 +82,7 @@ def get_product_api(
         )
 
     return product
+
 
 @router.put("/{product_id}", response_model=ProductDetail)
 def update_product_api(

@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -192,6 +193,7 @@ def list_products(db: Session, page: int, size: int) -> tuple[list[Product], int
 
     return products, total
 
+
 def update_product(db: Session, product_id: str, request: ProductUpdateRequest) -> Product | None:
     """更新商品数据库数据。"""
 
@@ -240,6 +242,7 @@ def delete_product(db: Session, product_id: str) -> bool:
     db.commit()
 
     return True
+
 
 def get_product_by_id(db: Session, product_id: str) -> Product | None:
     """根据商品 UUID 查询商品详情。"""

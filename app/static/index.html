@@ -4,133 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>simplees 商品列表</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
-      background: #f5f7fb;
-      color: #1f2937;
-    }
-
-    .page {
-      max-width: 1080px;
-      margin: 0 auto;
-      padding: 32px 20px;
-    }
-
-    .header {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 24px;
-      font-weight: 700;
-    }
-
-    .meta {
-      color: #6b7280;
-      font-size: 14px;
-    }
-
-    .toolbar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    input {
-      width: 280px;
-      padding: 10px 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      font-size: 14px;
-      background: #ffffff;
-    }
-
-    button {
-      padding: 10px 14px;
-      border: 1px solid #2563eb;
-      border-radius: 6px;
-      color: #ffffff;
-      background: #2563eb;
-      cursor: pointer;
-      font-size: 14px;
-    }
-
-    button.secondary {
-      border-color: #d1d5db;
-      color: #1f2937;
-      background: #ffffff;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #ffffff;
-      border: 1px solid #e5e7eb;
-    }
-
-    th,
-    td {
-      padding: 12px;
-      border-bottom: 1px solid #e5e7eb;
-      text-align: left;
-      font-size: 14px;
-    }
-
-    th {
-      background: #f9fafb;
-      font-weight: 600;
-    }
-
-    .id {
-      font-family: Menlo, Consolas, monospace;
-      color: #4b5563;
-      font-size: 12px;
-    }
-
-    .status {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: #dcfce7;
-      color: #166534;
-      font-size: 12px;
-    }
-
-    .pagination {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 12px;
-      margin-top: 16px;
-      color: #4b5563;
-      font-size: 14px;
-    }
-
-    .empty,
-    .error {
-      padding: 24px;
-      background: #ffffff;
-      border: 1px solid #e5e7eb;
-      text-align: center;
-      color: #6b7280;
-    }
-
-    .error {
-      color: #b91c1c;
-    }
-  </style>
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <main class="page">
@@ -146,6 +20,7 @@
       </div>
     </div>
 
+    <section id="notice" class="notice" hidden></section>
     <section id="content"></section>
 
     <div class="pagination">
@@ -155,149 +30,57 @@
     </div>
   </main>
 
-  <script>
-    // 当前页面状态。keyword 为空时走数据库分页接口，不为空时走 ES 搜索接口。
-    const state = {
-      page: 1,
-      size: 10,
-      total: 0,
-      keyword: "",
-    };
+  <dialog id="editDialog" class="dialog">
+    <form id="editForm" method="dialog" class="dialog-panel">
+      <div class="dialog-header">
+        <h2>编辑商品</h2>
+        <button class="icon-button" id="closeDialogButton" type="button" aria-label="关闭">x</button>
+      </div>
 
-    const content = document.getElementById("content");
-    const summary = document.getElementById("summary");
-    const pageInfo = document.getElementById("pageInfo");
-    const keywordInput = document.getElementById("keywordInput");
-    const searchButton = document.getElementById("searchButton");
-    const resetButton = document.getElementById("resetButton");
-    const prevButton = document.getElementById("prevButton");
-    const nextButton = document.getElementById("nextButton");
+      <input id="editProductId" type="hidden">
 
-    function buildApiUrl() {
-      const params = new URLSearchParams({
-        page: String(state.page),
-        size: String(state.size),
-      });
+      <label>
+        商品名称
+        <input id="editName" type="text" required>
+      </label>
 
-      if (state.keyword) {
-        params.set("q", state.keyword);
-        return `/api/products/search?${params.toString()}`;
-      }
+      <label>
+        商品描述
+        <textarea id="editDescription" rows="3"></textarea>
+      </label>
 
-      return `/api/products?${params.toString()}`;
-    }
+      <div class="form-grid">
+        <label>
+          价格
+          <input id="editPrice" type="number" min="0" step="0.01">
+        </label>
 
-    function formatPrice(price) {
-      if (price === null || price === undefined) {
-        return "-";
-      }
+        <label>
+          状态
+          <select id="editStatus">
+            <option value="active">active</option>
+            <option value="inactive">inactive</option>
+          </select>
+        </label>
+      </div>
 
-      return `¥${Number(price).toFixed(2)}`;
-    }
+      <label>
+        品牌 ID
+        <input id="editBrandId" type="text" required>
+      </label>
 
-    function renderTable(items) {
-      if (items.length === 0) {
-        content.innerHTML = '<div class="empty">暂无商品数据</div>';
-        return;
-      }
+      <label>
+        类目 ID
+        <input id="editCategoryId" type="text" required>
+      </label>
 
-      const rows = items.map((item) => `
-        <tr>
-          <td class="id">${item.id}</td>
-          <td>${item.name}</td>
-          <td>${item.brand.name}</td>
-          <td>${item.category.name}</td>
-          <td>${formatPrice(item.price)}</td>
-          <td><span class="status">${item.status}</span></td>
-        </tr>
-      `).join("");
+      <div class="dialog-actions">
+        <button class="secondary" id="cancelEditButton" type="button">取消</button>
+        <button id="saveEditButton" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
 
-      content.innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>商品 ID</th>
-              <th>商品名称</th>
-              <th>品牌</th>
-              <th>类目</th>
-              <th>价格</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      `;
-    }
-
-    function renderPagination() {
-      const totalPages = Math.max(1, Math.ceil(state.total / state.size));
-
-      pageInfo.textContent = `第 ${state.page} 页 / 共 ${totalPages} 页`;
-      prevButton.disabled = state.page <= 1;
-      nextButton.disabled = state.page >= totalPages;
-    }
-
-    async function loadProducts() {
-      summary.textContent = "正在加载商品数据";
-      content.innerHTML = '<div class="empty">加载中...</div>';
-
-      try {
-        const response = await fetch(buildApiUrl());
-
-        if (!response.ok) {
-          throw new Error(`接口请求失败：${response.status}`);
-        }
-
-        const data = await response.json();
-
-        state.total = data.total;
-        renderTable(data.items);
-        renderPagination();
-
-        const modeText = state.keyword ? `搜索：${state.keyword}` : "全部商品";
-        summary.textContent = `${modeText}，共 ${data.total} 条`;
-      } catch (error) {
-        content.innerHTML = `<div class="error">${error.message}</div>`;
-        summary.textContent = "加载失败";
-      }
-    }
-
-    searchButton.addEventListener("click", () => {
-      state.keyword = keywordInput.value.trim();
-      state.page = 1;
-      loadProducts();
-    });
-
-    resetButton.addEventListener("click", () => {
-      state.keyword = "";
-      state.page = 1;
-      keywordInput.value = "";
-      loadProducts();
-    });
-
-    keywordInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        searchButton.click();
-      }
-    });
-
-    prevButton.addEventListener("click", () => {
-      if (state.page > 1) {
-        state.page -= 1;
-        loadProducts();
-      }
-    });
-
-    nextButton.addEventListener("click", () => {
-      const totalPages = Math.max(1, Math.ceil(state.total / state.size));
-
-      if (state.page < totalPages) {
-        state.page += 1;
-        loadProducts();
-      }
-    });
-
-    loadProducts();
-  </script>
+  <script src="/static/app.js"></script>
 </body>
 </html>
