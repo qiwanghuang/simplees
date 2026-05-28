@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -83,8 +84,9 @@ class ProductUpdateRequest(BaseModel):
     # 商品所属类目 UUID。
     category_id: str
 
-    # 商品状态：active=上架，inactive=下架，deleted=已删除。
-    status: str
+    # 商品状态：更新接口只允许 active=上架，inactive=下架。
+    # deleted 只能通过 DELETE 接口进入。
+    status: Literal["active", "inactive"]
 
 
 class MessageResponse(BaseModel):
