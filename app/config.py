@@ -20,6 +20,16 @@ def get_int_env(name: str, default: int) -> int:
     return int(value)
 
 
+def get_required_env(name: str) -> str:
+    """读取必填环境变量。"""
+    value = os.getenv(name)
+
+    if value is None or value == "":
+        raise RuntimeError(f"环境变量 {name} 未配置")
+
+    return value
+
+
 @dataclass(frozen=True)
 class Settings:
     # 应用基础配置：控制服务名称、监听地址和端口。
@@ -27,9 +37,18 @@ class Settings:
     app_host: str = os.getenv("APP_HOST", "127.0.0.1")
     app_port: int = get_int_env("APP_PORT", 8000)
 
-    # 数据库连接地址。
-    # 当前默认使用 SQLite，以后切换 MySQL/PostgreSQL 时主要改这里。
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/simplees.db")
+    # 数据库连接地址，当前项目要求使用 MySQL。
+    database_url: str = get_required_env("DATABASE_URL")
+
+    # 数据库连接池配置。
+    # pool_size 表示连接池长期保留的连接数。
+    # max_overflow 表示连接池不够用时，最多额外临时创建多少个连接。
+    # pool_timeout 表示获取连接最多等待多少秒。
+    # pool_recycle 表示连接最多复用多少秒后回收重建。
+    db_pool_size: int = get_int_env("DB_POOL_SIZE", 5)
+    db_max_overflow: int = get_int_env("DB_MAX_OVERFLOW", 10)
+    db_pool_timeout_seconds: int = get_int_env("DB_POOL_TIMEOUT_SECONDS", 30)
+    db_pool_recycle_seconds: int = get_int_env("DB_POOL_RECYCLE_SECONDS", 280)
 
     # Elasticsearch 连接配置。
     # 商品搜索时会通过这些配置连接 ES 并查询商品索引。
