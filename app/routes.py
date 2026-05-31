@@ -2,14 +2,35 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas import MessageResponse, ProductDetail, ProductSearchResponse, ProductUpdateRequest
-from app.services import delete_product, get_product_by_id, list_products, normalize_size, search_products, update_product
+from app.schemas import (
+    BrandOption,
+    CategoryOption,
+    MessageResponse,
+    ProductCreateRequest,
+    ProductDetail,
+    ProductSearchResponse,
+    ProductUpdateRequest,
+)
+from app.services import (
+    create_product,
+    delete_product,
+    get_product_by_id,
+    list_brands,
+    list_categories,
+    list_products,
+    normalize_size,
+    search_products,
+    update_product,
+)
 
 
-router = APIRouter(prefix="/api/products", tags=["products"])
+router = APIRouter()
+product_router = APIRouter(prefix="/api/products", tags=["products"])
+brand_router = APIRouter(prefix="/api/brands", tags=["brands"])
+category_router = APIRouter(prefix="/api/categories", tags=["categories"])
 
 
-@router.get("", response_model=ProductSearchResponse)
+@product_router.get("", response_model=ProductSearchResponse)
 def list_product_api(
     page: int = Query(1, ge=1, description="页码，从 1 开始"),
     size: int = Query(10, ge=1, description="每页数量"),
@@ -35,7 +56,20 @@ def list_product_api(
     }
 
 
-@router.get("/search", response_model=ProductSearchResponse)
+@product_router.post("", response_model=ProductDetail)
+def create_product_api(
+    request: ProductCreateRequest,
+    db: Session = Depends(get_db),
+):
+    """创建商品接口：只写 MySQL，ES 由 Canal Consumer 异步同步。"""
+
+    return create_product(
+        db=db,
+        request=request,
+    )
+
+
+@product_router.get("/search", response_model=ProductSearchResponse)
 def search_product_api(
     q: str = Query(..., min_length=1, description="搜索关键词，可输入商品名、品牌名或类目名"),
     page: int = Query(1, ge=1, description="页码，从 1 开始"),
@@ -62,7 +96,7 @@ def search_product_api(
     }
 
 
-@router.get("/{product_id}", response_model=ProductDetail)
+@product_router.get("/{product_id}", response_model=ProductDetail)
 def get_product_api(
     product_id: str,
     db: Session = Depends(get_db),
@@ -83,7 +117,7 @@ def get_product_api(
     return product
 
 
-@router.put("/{product_id}", response_model=ProductDetail)
+@product_router.put("/{product_id}", response_model=ProductDetail)
 def update_product_api(
     product_id: str,
     request: ProductUpdateRequest,
@@ -106,7 +140,7 @@ def update_product_api(
     return product
 
 
-@router.delete("/{product_id}", response_model=MessageResponse)
+@product_router.delete("/{product_id}", response_model=MessageResponse)
 def delete_product_api(
     product_id: str,
     db: Session = Depends(get_db),
@@ -127,3 +161,26 @@ def delete_product_api(
     return {
         "message": "删除成功",
     }
+
+
+@brand_router.get("", response_model=list[BrandOption])
+def list_brand_api(
+    db: Session = Depends(get_db),
+):
+    """品牌下拉选项接口。"""
+
+    return list_brands(db=db)
+
+
+@category_router.get("", response_model=list[CategoryOption])
+def list_category_api(
+    db: Session = Depends(get_db),
+):
+    """类目下拉选项接口。"""
+
+    return list_categories(db=db)
+
+
+router.include_router(product_router)
+router.include_router(brand_router)
+router.include_router(category_router)

@@ -17,6 +17,7 @@
         <input id="keywordInput" type="search" placeholder="搜索商品、品牌或类目">
         <button id="searchButton">搜索</button>
         <button class="secondary" id="resetButton">全部</button>
+        <button id="addProductButton" type="button">添加商品</button>
       </div>
     </div>
 
@@ -33,7 +34,7 @@
   <dialog id="editDialog" class="dialog">
     <form id="editForm" method="dialog" class="dialog-panel">
       <div class="dialog-header">
-        <h2>编辑商品</h2>
+        <h2 id="editDialogTitle">编辑商品</h2>
         <button class="icon-button" id="closeDialogButton" type="button" aria-label="关闭">x</button>
       </div>
 
@@ -65,13 +66,13 @@
       </div>
 
       <label>
-        品牌 ID
-        <input id="editBrandId" type="text" required>
+        品牌
+        <select id="editBrandId" required></select>
       </label>
 
       <label>
-        类目 ID
-        <input id="editCategoryId" type="text" required>
+        类目
+        <select id="editCategoryId" required></select>
       </label>
 
       <div class="dialog-actions">
@@ -81,6 +82,6 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20260531-dropdown"></script>
 </body>
 </html>

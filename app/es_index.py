@@ -7,7 +7,7 @@ def get_product_index_mapping() -> dict:
 
     return {
         "properties": {
-            # 商品 UUID，用来从 ES 搜索结果回查 SQLite。
+            # 商品 UUID，用来从 ES 搜索结果回查 MySQL。
             "product_id": {
                 "type": "keyword",
             },

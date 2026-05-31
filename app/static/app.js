@@ -5,6 +5,8 @@ const state = {
   total: 0,
   keyword: "",
   items: [],
+  brands: [],
+  categories: [],
 };
 
 const content = document.getElementById("content");
@@ -14,9 +16,11 @@ const notice = document.getElementById("notice");
 const keywordInput = document.getElementById("keywordInput");
 const searchButton = document.getElementById("searchButton");
 const resetButton = document.getElementById("resetButton");
+const addProductButton = document.getElementById("addProductButton");
 const prevButton = document.getElementById("prevButton");
 const nextButton = document.getElementById("nextButton");
 const editDialog = document.getElementById("editDialog");
+const editDialogTitle = document.getElementById("editDialogTitle");
 const editForm = document.getElementById("editForm");
 const closeDialogButton = document.getElementById("closeDialogButton");
 const cancelEditButton = document.getElementById("cancelEditButton");
@@ -141,6 +145,28 @@ async function requestJson(url, options = {}) {
   return response.json();
 }
 
+function renderSelectOptions(select, items, placeholder) {
+  const options = [
+    `<option value="">${escapeHtml(placeholder)}</option>`,
+    ...items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`),
+  ];
+
+  select.innerHTML = options.join("");
+}
+
+async function loadReferenceData() {
+  const [brands, categories] = await Promise.all([
+    requestJson("/api/brands"),
+    requestJson("/api/categories"),
+  ]);
+
+  state.brands = brands;
+  state.categories = categories;
+
+  renderSelectOptions(editBrandId, brands, "请选择品牌");
+  renderSelectOptions(editCategoryId, categories, "请选择类目");
+}
+
 async function loadProducts() {
   summary.textContent = "正在加载商品数据";
   content.innerHTML = '<div class="empty">加载中...</div>';
@@ -161,7 +187,20 @@ async function loadProducts() {
   }
 }
 
+function openCreateDialog() {
+  editDialogTitle.textContent = "添加商品";
+  editProductId.value = "";
+  editName.value = "";
+  editDescription.value = "";
+  editPrice.value = "";
+  editStatus.value = "active";
+  editBrandId.value = "";
+  editCategoryId.value = "";
+  editDialog.showModal();
+}
+
 function openEditDialog(product) {
+  editDialogTitle.textContent = "编辑商品";
   editProductId.value = product.id;
   editName.value = product.name;
   editDescription.value = product.description || "";
@@ -183,8 +222,12 @@ async function saveProduct() {
     status: editStatus.value,
   };
 
-  await requestJson(`/api/products/${encodeURIComponent(productId)}`, {
-    method: "PUT",
+  const isCreate = productId === "";
+  const url = isCreate ? "/api/products" : `/api/products/${encodeURIComponent(productId)}`;
+  const method = isCreate ? "POST" : "PUT";
+
+  await requestJson(url, {
+    method,
     headers: {
       "Content-Type": "application/json",
     },
@@ -192,7 +235,7 @@ async function saveProduct() {
   });
 
   editDialog.close();
-  showNotice("商品修改成功，ES 将通过 Canal 异步同步");
+  showNotice(`商品${isCreate ? "添加" : "修改"}成功，ES 将通过 Canal 异步同步`);
   await loadProducts();
 }
 
@@ -228,6 +271,10 @@ resetButton.addEventListener("click", () => {
   state.page = 1;
   keywordInput.value = "";
   loadProducts();
+});
+
+addProductButton.addEventListener("click", () => {
+  openCreateDialog();
 });
 
 keywordInput.addEventListener("keydown", (event) => {
@@ -297,4 +344,14 @@ cancelEditButton.addEventListener("click", () => {
   editDialog.close();
 });
 
-loadProducts();
+async function initPage() {
+  try {
+    await loadReferenceData();
+    await loadProducts();
+  } catch (error) {
+    content.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+    summary.textContent = "初始化失败";
+  }
+}
+
+initPage();

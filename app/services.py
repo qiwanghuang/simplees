@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.es_client import es_client
-from app.models import Product
-from app.schemas import ProductUpdateRequest
+from app.models import Brand, Category, Product
+from app.schemas import ProductCreateRequest, ProductUpdateRequest
 
 
 def normalize_page(page: int) -> int:
@@ -115,7 +115,7 @@ def search_product_ids_from_es(keyword: str, page: int, size: int) -> tuple[list
 
 
 def get_products_by_ids(db: Session, product_ids: list[str]) -> list[Product]:
-    """根据商品 UUID 列表查询 SQLite，并保持 ES 返回的排序。"""
+    """根据商品 UUID 列表查询 MySQL，并保持 ES 返回的排序。"""
 
     if not product_ids:
         return []
@@ -131,7 +131,7 @@ def get_products_by_ids(db: Session, product_ids: list[str]) -> list[Product]:
         .all()
     )
 
-    # SQLite 查询结果不一定会按 product_ids 的顺序返回。
+    # MySQL 查询结果不一定会按 product_ids 的顺序返回。
     # 这里手动按 ES 的相关性顺序重新排序。
     product_map = {
         product.id: product
@@ -146,7 +146,7 @@ def get_products_by_ids(db: Session, product_ids: list[str]) -> list[Product]:
 
 
 def search_products(db: Session, keyword: str, page: int, size: int) -> tuple[list[Product], int]:
-    """搜索商品：先查 ES 获取商品 UUID，再回查 SQLite 获取商品详情。"""
+    """搜索商品：先查 ES 获取商品 UUID，再回查 MySQL 获取商品详情。"""
 
     product_ids, total = search_product_ids_from_es(
         keyword=keyword,
@@ -163,7 +163,7 @@ def search_products(db: Session, keyword: str, page: int, size: int) -> tuple[li
 
 
 def list_products(db: Session, page: int, size: int) -> tuple[list[Product], int]:
-    """分页查询商品列表：直接查询 SQLite，不走 ES。"""
+    """分页查询商品列表：直接查询 MySQL，不走 ES。"""
 
     page = normalize_page(page)
     size = normalize_size(size)
@@ -192,6 +192,51 @@ def list_products(db: Session, page: int, size: int) -> tuple[list[Product], int
     )
 
     return products, total
+
+
+def list_brands(db: Session) -> list[Brand]:
+    """查询可选品牌列表。"""
+
+    return (
+        db.query(Brand)
+        .filter(Brand.status == "active")
+        .order_by(Brand.name.asc())
+        .all()
+    )
+
+
+def list_categories(db: Session) -> list[Category]:
+    """查询可选类目列表。"""
+
+    return (
+        db.query(Category)
+        .filter(Category.status == "active")
+        .order_by(Category.name.asc())
+        .all()
+    )
+
+
+def create_product(db: Session, request: ProductCreateRequest) -> Product:
+    """创建商品数据库数据。"""
+
+    product = Product(
+        name=request.name,
+        description=request.description,
+        price=request.price,
+        brand_id=request.brand_id,
+        category_id=request.category_id,
+        status=request.status,
+        updated_at=datetime.now(),
+    )
+
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+
+    return get_product_by_id(
+        db=db,
+        product_id=product.id,
+    )
 
 
 def update_product(db: Session, product_id: str, request: ProductUpdateRequest) -> Product | None:

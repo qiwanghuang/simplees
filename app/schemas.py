@@ -25,6 +25,24 @@ class CategoryInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BrandOption(BaseModel):
+    """品牌下拉选项。"""
+
+    id: str
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CategoryOption(BaseModel):
+    """类目下拉选项。"""
+
+    id: str
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ProductListItem(BaseModel):
     """商品搜索列表里的单个商品。"""
 
@@ -64,6 +82,17 @@ class ProductSearchResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class ProductCreateRequest(BaseModel):
+    """商品创建接口的请求结构。"""
+
+    name: str
+    description: str | None = None
+    price: Decimal | None = None
+    brand_id: str
+    category_id: str
+    status: Literal["active", "inactive"] = "active"
 
 
 class ProductUpdateRequest(BaseModel):
