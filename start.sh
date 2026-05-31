@@ -29,6 +29,9 @@ import elasticsearch
 import pydantic
 import dotenv
 import sqlalchemy
+import pymysql
+import canal.client
+import google.protobuf
 PY
 then
   echo "Project dependencies are missing." >&2
@@ -43,26 +46,9 @@ echo "Initializing database schema..."
 echo "Seeding sample data..."
 "$PYTHON" -m app.seed_data
 
-if [[ "${SKIP_ES:-0}" == "1" ]]; then
-  echo "Skipping Elasticsearch setup because SKIP_ES=1."
-else
-  echo "Checking Elasticsearch connectivity..."
-  if "$PYTHON" - <<'PY'
-from app.es_client import ping_es
-
-raise SystemExit(0 if ping_es() else 1)
-PY
-  then
-    echo "Preparing Elasticsearch index..."
-    "$PYTHON" -m app.es_index
-
-    echo "Synchronizing products to Elasticsearch..."
-    "$PYTHON" -m app.es_sync
-  else
-    echo "Elasticsearch is not reachable; skipping index creation and product sync."
-    echo "The list/detail APIs can still run, but search and write-time ES sync need Elasticsearch."
-  fi
-fi
+echo "Skipping automatic ES sync on API startup."
+echo "Run full ES rebuild manually with: $PYTHON -m app.es_sync"
+echo "Run Canal incremental sync with: $PYTHON -m app.canal_consumer"
 
 read -r APP_HOST APP_PORT < <("$PYTHON" - <<'PY'
 from app.config import settings

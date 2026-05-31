@@ -192,7 +192,7 @@ async function saveProduct() {
   });
 
   editDialog.close();
-  showNotice("商品修改成功，ES 索引已同步刷新");
+  showNotice("商品修改成功，ES 将通过 Canal 异步同步");
   await loadProducts();
 }
 
@@ -208,7 +208,7 @@ async function deleteProduct(productId) {
     method: "DELETE",
   });
 
-  showNotice("商品删除成功，ES 索引已同步删除");
+  showNotice("商品删除成功，ES 将通过 Canal 异步同步");
 
   if (state.items.length === 1 && state.page > 1) {
     state.page -= 1;

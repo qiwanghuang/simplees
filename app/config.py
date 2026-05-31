@@ -58,6 +58,19 @@ class Settings:
     es_product_index: str = os.getenv("ES_PRODUCT_INDEX", "product_search")
     es_request_timeout_seconds: int = get_int_env("ES_REQUEST_TIMEOUT_SECONDS", 5)
 
+    # Canal 连接配置。
+    # Canal Consumer 作为独立进程运行，消费 MySQL binlog 后同步 ES。
+    canal_host: str = os.getenv("CANAL_HOST", "127.0.0.1")
+    canal_port: int = get_int_env("CANAL_PORT", 11111)
+    canal_destination: str = os.getenv("CANAL_DESTINATION", "canales")
+    canal_filter: str = os.getenv("CANAL_FILTER", r"simplees\..*")
+    canal_client_id: str = os.getenv("CANAL_CLIENT_ID", "1001")
+    canal_username: str = os.getenv("CANAL_USERNAME", "")
+    canal_password: str = os.getenv("CANAL_PASSWORD", "")
+    canal_database: str = os.getenv("CANAL_DATABASE", "simplees")
+    canal_batch_size: int = get_int_env("CANAL_BATCH_SIZE", 100)
+    canal_empty_sleep_seconds: int = get_int_env("CANAL_EMPTY_SLEEP_SECONDS", 1)
+
     # 搜索分页配置。
     # default 表示用户没传 size 时默认返回多少条，max 表示最多允许返回多少条。
     search_default_page_size: int = get_int_env("SEARCH_DEFAULT_PAGE_SIZE", 10)
