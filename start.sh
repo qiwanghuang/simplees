@@ -32,6 +32,7 @@ import sqlalchemy
 import pymysql
 import canal.client
 import google.protobuf
+import pika
 PY
 then
   echo "Project dependencies are missing." >&2
@@ -48,7 +49,7 @@ echo "Seeding sample data..."
 
 echo "Skipping automatic ES sync on API startup."
 echo "Run full ES rebuild manually with: $PYTHON -m app.es_sync"
-echo "Run Canal incremental sync with: $PYTHON -m app.canal_consumer"
+echo "Run RabbitMQ incremental sync with: $PYTHON -m app.rabbitmq_consumer"
 
 read -r APP_HOST APP_PORT < <("$PYTHON" - <<'PY'
 from app.config import settings

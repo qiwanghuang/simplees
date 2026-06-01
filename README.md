@@ -2,7 +2,7 @@
 
 `simplees` 是一个用于学习 MySQL、Elasticsearch 和 Canal 的商品搜索示例项目。
 
-项目以 MySQL 作为业务数据源，Elasticsearch 作为商品搜索索引，Canal 监听 MySQL binlog 后异步同步 ES。页面端提供商品列表、搜索、添加、编辑和删除能力。
+项目以 MySQL 作为业务数据源，Elasticsearch 作为商品搜索索引，Canal 监听 MySQL binlog 后投递到 RabbitMQ，Python Consumer 再消费 RabbitMQ 消息并异步同步 ES。页面端提供商品列表、搜索、添加、编辑和删除能力。
 
 ## 技术栈
 
@@ -12,6 +12,7 @@
 - MySQL
 - Elasticsearch 8.x
 - Canal
+- RabbitMQ
 - 原生 HTML/CSS/JavaScript
 
 ## 核心流程
@@ -21,8 +22,9 @@
   -> FastAPI 接口
   -> 写入 MySQL
   -> MySQL 产生 binlog
-  -> Canal 监听 binlog
-  -> app.canal_consumer 消费变更
+  -> Canal Server 监听 binlog
+  -> Canal Server 投递消息到 RabbitMQ
+  -> app.rabbitmq_consumer 消费 RabbitMQ 消息
   -> 同步商品文档到 Elasticsearch
   -> 搜索接口查询 Elasticsearch
 ```
@@ -42,8 +44,9 @@
 │   ├── services.py          # 业务逻辑
 │   ├── es_index.py          # ES 索引创建
 │   ├── es_sync.py           # ES 全量/单条同步工具
-│   ├── canal_consumer.py    # Canal 正式消费进程
-│   └── canal_debug_consumer.py # Canal 调试消费进程
+│   ├── canal_consumer.py    # 旧版 Canal TCP 消费进程，当前主流程不使用
+│   ├── canal_debug_consumer.py # Canal TCP 调试消费进程
+│   └── rabbitmq_consumer.py # RabbitMQ 增量消费进程
 ├── docs/api-logic/          # 接口逻辑说明文档
 ├── main.py                  # FastAPI 入口
 ├── start.sh                 # 本地启动脚本
@@ -77,6 +80,12 @@ CANAL_PORT=11111
 CANAL_DESTINATION=canales
 CANAL_FILTER=simplees\..*
 CANAL_DATABASE=simplees
+RABBITMQ_HOST=127.0.0.1
+RABBITMQ_PORT=5672
+RABBITMQ_VHOST=simplees
+RABBITMQ_USERNAME=simplees
+RABBITMQ_PASSWORD=simplees123
+RABBITMQ_QUEUE=simplees.canal.queue
 ```
 
 注意：`.env` 只放本地配置，不要提交到仓库。
@@ -159,28 +168,42 @@ http://127.0.0.1:8000/products-page
 http://127.0.0.1:8000/docs
 ```
 
-## 启动 Canal 增量同步
+## 启动 RabbitMQ 增量同步
 
 FastAPI 服务只负责写 MySQL，不会在接口里直接写 ES。
 
-需要单独启动 Canal Consumer：
+当前增量同步链路是：
 
-```bash
-python -m app.canal_consumer
+```text
+MySQL -> Canal -> RabbitMQ -> app.rabbitmq_consumer -> ES
 ```
 
-调试 Canal 原始变更可以使用：
+需要单独启动 RabbitMQ Consumer：
+
+```bash
+python -m app.rabbitmq_consumer
+```
+
+调试 Canal TCP 原始变更时，可以使用旧的调试脚本：
 
 ```bash
 python -m app.canal_debug_consumer
 ```
 
+旧版 Canal TCP 消费进程仍保留在项目中，但当前主流程不使用：
+
+```bash
+python -m app.canal_consumer
+```
+
 如果商品添加、修改、删除后 ES 没有变化，优先检查：
 
 1. Canal Server 是否正在运行。
-2. `python -m app.canal_consumer` 是否正在运行。
-3. MySQL binlog 是否开启。
-4. `.env` 里的 `CANAL_DESTINATION`、`CANAL_FILTER`、`CANAL_DATABASE` 是否正确。
+2. RabbitMQ 是否正在运行。
+3. `python -m app.rabbitmq_consumer` 是否正在运行。
+4. RabbitMQ 队列 `simplees.canal.queue` 是否有消息堆积。
+5. MySQL binlog 是否开启。
+6. `.env` 里的 `CANAL_DATABASE`、`RABBITMQ_HOST`、`RABBITMQ_VHOST`、`RABBITMQ_QUEUE` 是否正确。
 
 ## 主要接口
 
@@ -191,7 +214,7 @@ python -m app.canal_debug_consumer
 | `GET` | `/api/products/search` | 商品搜索，先查 ES 再回查 MySQL |
 | `GET` | `/api/products/{product_id}` | 商品详情 |
 | `PUT` | `/api/products/{product_id}` | 修改商品，只写 MySQL |
-| `DELETE` | `/api/products/{product_id}` | 删除商品，只写 MySQL，ES 由 Canal 异步同步 |
+| `DELETE` | `/api/products/{product_id}` | 删除商品，只写 MySQL，ES 由 RabbitMQ Consumer 异步同步 |
 | `GET` | `/api/brands` | 品牌下拉选项 |
 | `GET` | `/api/categories` | 类目下拉选项 |
 
@@ -226,6 +249,6 @@ python -m app.es_sync
 
 - MySQL 是业务数据源，ES 只是搜索索引。
 - 接口写入成功只代表 MySQL 已成功提交。
-- ES 是否更新取决于 Canal Server 和 `app.canal_consumer` 是否正常运行。
+- ES 是否更新取决于 Canal Server、RabbitMQ 和 `app.rabbitmq_consumer` 是否正常运行。
 - 事务回滚不会产生最终提交的 binlog，因此 Canal 不会同步失败回滚的数据。
 - `.env.example` 可以提交，`.env` 不应该提交。

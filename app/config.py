@@ -71,6 +71,22 @@ class Settings:
     canal_batch_size: int = get_int_env("CANAL_BATCH_SIZE", 100)
     canal_empty_sleep_seconds: int = get_int_env("CANAL_EMPTY_SLEEP_SECONDS", 1)
 
+    # RabbitMQ 连接配置。
+    # RabbitMQ Consumer 会消费 Canal 投递到队列里的 binlog JSON 消息。
+    rabbitmq_host: str = os.getenv("RABBITMQ_HOST", "127.0.0.1")
+    rabbitmq_port: int = get_int_env("RABBITMQ_PORT", 5672)
+    rabbitmq_vhost: str = os.getenv("RABBITMQ_VHOST", "simplees")
+    rabbitmq_username: str = os.getenv("RABBITMQ_USERNAME", "simplees")
+    rabbitmq_password: str = os.getenv("RABBITMQ_PASSWORD", "simplees123")
+    rabbitmq_queue: str = os.getenv("RABBITMQ_QUEUE", "simplees.canal.queue")
+
+    # 每次最多从 RabbitMQ 预取多少条未确认消息。
+    # 值越大吞吐越高，但失败时未确认消息也会更多。
+    rabbitmq_prefetch_count: int = get_int_env("RABBITMQ_PREFETCH_COUNT", 10)
+
+    # RabbitMQ Consumer 出错后等待多少秒再重连。
+    rabbitmq_reconnect_seconds: int = get_int_env("RABBITMQ_RECONNECT_SECONDS", 3)
+
     # 搜索分页配置。
     # default 表示用户没传 size 时默认返回多少条，max 表示最多允许返回多少条。
     search_default_page_size: int = get_int_env("SEARCH_DEFAULT_PAGE_SIZE", 10)
