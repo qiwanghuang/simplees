@@ -1,0 +1,15 @@
+.git/
+.idea/
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+.DS_Store
+data/
+htmlcov/
+.pytest_cache/
+build/
+dist/
+*.egg-info/

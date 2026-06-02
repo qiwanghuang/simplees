@@ -90,6 +90,58 @@ RABBITMQ_QUEUE=simplees.canal.queue
 
 注意：`.env` 只放本地配置，不要提交到仓库。
 
+## Docker 一键启动基础设施
+
+项目根目录已经提供 `docker-compose.yml`，会一次性启动：
+
+- MySQL：业务数据库，同时开启 Canal 需要的 binlog。
+- Elasticsearch：商品搜索索引。
+- RabbitMQ：承接 Canal 投递的 binlog 消息。
+- Canal Server：监听 MySQL binlog 并投递到 RabbitMQ。
+- app-init：一次性执行建表、种子数据、创建 ES 索引、全量同步。
+- app：FastAPI 服务。
+- rabbitmq-consumer：消费 RabbitMQ 消息并增量同步 ES。
+
+首次使用先复制环境变量：
+
+```bash
+cp .env.example .env
+```
+
+然后一键启动全部服务：
+
+```bash
+docker compose up -d --build
+```
+
+默认端口：
+
+| 服务 | 地址 |
+| --- | --- |
+| MySQL | `127.0.0.1:3306` |
+| Elasticsearch | `http://127.0.0.1:9200` |
+| RabbitMQ AMQP | `127.0.0.1:5672` |
+| RabbitMQ 管理后台 | `http://127.0.0.1:15672` |
+| Canal TCP 调试端口 | `127.0.0.1:11111` |
+| FastAPI | `http://127.0.0.1:8000` |
+| 商品页面 | `http://127.0.0.1:8000/products-page` |
+
+RabbitMQ 管理后台账号密码默认是：
+
+```text
+simplees / simplees123
+```
+
+如果你本机已经有 MySQL 或 ES 占用了端口，可以改 `.env` 里的 `MYSQL_PORT`、`ES_PORT`、`RABBITMQ_PORT`，同时同步调整 `DATABASE_URL`、`ES_HOST`、`RABBITMQ_HOST` 等应用连接配置。
+
+Docker 构建默认使用 `docker.m.daocloud.io/library/python:3.11-slim`，避免 Docker Hub 直连拉取 `python:3.11-slim` 超时。后续如果你配置好了 Docker Hub 镜像源，也可以把 `.env` 里的 `PYTHON_IMAGE` 改回 `python:3.11-slim`。
+
+查看关键日志：
+
+```bash
+docker compose logs -f app rabbitmq-consumer canal
+```
+
 ## MySQL 要求
 
 Canal 依赖 MySQL binlog，MySQL 需要开启以下配置：

@@ -1,0 +1,201 @@
+x-app-environment: &app-environment
+  APP_NAME: ${APP_NAME:-simplees}
+  APP_HOST: 0.0.0.0
+  APP_PORT: "8000"
+  DATABASE_URL: mysql+pymysql://${MYSQL_APP_USER:-simplees}:${MYSQL_APP_PASSWORD:-simplees123}@mysql:3306/${MYSQL_DATABASE:-simplees}?charset=utf8mb4
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+  DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-10}
+  DB_POOL_TIMEOUT_SECONDS: ${DB_POOL_TIMEOUT_SECONDS:-30}
+  DB_POOL_RECYCLE_SECONDS: ${DB_POOL_RECYCLE_SECONDS:-280}
+  ES_HOST: http://elasticsearch:9200
+  ES_USERNAME: ""
+  ES_PASSWORD: ""
+  ES_PRODUCT_INDEX: ${ES_PRODUCT_INDEX:-product_search}
+  ES_REQUEST_TIMEOUT_SECONDS: ${ES_REQUEST_TIMEOUT_SECONDS:-5}
+  CANAL_HOST: canal
+  CANAL_PORT: "11111"
+  CANAL_DESTINATION: ${CANAL_DESTINATION:-canales}
+  CANAL_FILTER: ${CANAL_FILTER:-simplees\..*}
+  CANAL_CLIENT_ID: ${CANAL_CLIENT_ID:-1001}
+  CANAL_USERNAME: ""
+  CANAL_PASSWORD: ""
+  CANAL_DATABASE: ${CANAL_DATABASE:-simplees}
+  CANAL_BATCH_SIZE: ${CANAL_BATCH_SIZE:-100}
+  CANAL_EMPTY_SLEEP_SECONDS: ${CANAL_EMPTY_SLEEP_SECONDS:-1}
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-simplees}
+  RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-simplees}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-simplees123}
+  RABBITMQ_QUEUE: ${RABBITMQ_QUEUE:-simplees.canal.queue}
+  RABBITMQ_PREFETCH_COUNT: ${RABBITMQ_PREFETCH_COUNT:-10}
+  RABBITMQ_RECONNECT_SECONDS: ${RABBITMQ_RECONNECT_SECONDS:-3}
+  SEARCH_DEFAULT_PAGE_SIZE: ${SEARCH_DEFAULT_PAGE_SIZE:-10}
+  SEARCH_MAX_PAGE_SIZE: ${SEARCH_MAX_PAGE_SIZE:-50}
+
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.0}
+    container_name: simplees-mysql
+    restart: unless-stopped
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-row-image=FULL
+      - --server-id=1
+      - --default-time-zone=+08:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-111111}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-simplees}
+      MYSQL_APP_USER: ${MYSQL_APP_USER:-simplees}
+      MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:-simplees123}
+      CANAL_MYSQL_USER: ${CANAL_MYSQL_USER:-canal}
+      CANAL_MYSQL_PASSWORD: ${CANAL_MYSQL_PASSWORD:-123456}
+      TZ: ${DOCKER_TIMEZONE:-Asia/Shanghai}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - simplees_mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  elasticsearch:
+    image: ${ES_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.15.3}
+    container_name: simplees-elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms512m -Xmx512m}
+      TZ: ${DOCKER_TIMEZONE:-Asia/Shanghai}
+    ports:
+      - "${ES_PORT:-9200}:9200"
+    volumes:
+      - simplees_es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+  rabbitmq:
+    image: ${RABBITMQ_IMAGE:-rabbitmq:3.13-management}
+    container_name: simplees-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-simplees}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-simplees123}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-simplees}
+      TZ: ${DOCKER_TIMEZONE:-Asia/Shanghai}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - simplees_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  canal:
+    image: ${CANAL_IMAGE:-canal/canal-server:v1.1.7}
+    container_name: simplees-canal
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      TZ: ${DOCKER_TIMEZONE:-Asia/Shanghai}
+      canal.serverMode: rabbitMQ
+      canal.port: "11111"
+      canal.destinations: ${CANAL_DESTINATION:-canales}
+      canal.auto.scan: "true"
+      canal.instance.master.address: mysql:3306
+      canal.instance.dbUsername: ${CANAL_MYSQL_USER:-canal}
+      canal.instance.dbPassword: ${CANAL_MYSQL_PASSWORD:-123456}
+      canal.instance.connectionCharset: ${MYSQL_CHARSET:-UTF-8}
+      canal.instance.tsdb.enable: "true"
+      canal.instance.gtidon: "false"
+      canal.instance.filter.regex: ${CANAL_FILTER:-simplees\..*}
+      canal.instance.filter.black.regex: ${CANAL_FILTER_BLACK_REGEX:-mysql\..*,information_schema\..*,performance_schema\..*,sys\..*}
+      canal.mq.flatMessage: "true"
+      canal.mq.topic: ${RABBITMQ_ROUTING_KEY:-simplees.canal.routing}
+      rabbitmq.host: rabbitmq
+      rabbitmq.virtual.host: ${RABBITMQ_VHOST:-simplees}
+      rabbitmq.exchange: ${RABBITMQ_EXCHANGE:-simplees.canal.exchange}
+      rabbitmq.username: ${RABBITMQ_USERNAME:-simplees}
+      rabbitmq.password: ${RABBITMQ_PASSWORD:-simplees123}
+      rabbitmq.queue: ${RABBITMQ_QUEUE:-simplees.canal.queue}
+      rabbitmq.routingKey: ${RABBITMQ_ROUTING_KEY:-simplees.canal.routing}
+      rabbitmq.deliveryMode: ${RABBITMQ_EXCHANGE_TYPE:-direct}
+    ports:
+      - "${CANAL_PORT:-11111}:11111"
+    volumes:
+      - simplees_canal_logs:/home/admin/canal-server/logs
+
+  app-init:
+    image: ${APP_IMAGE:-simplees-app:local}
+    container_name: simplees-app-init
+    depends_on:
+      mysql:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment: *app-environment
+    command: >
+      sh -c "python -m app.init_db
+      && python -m app.seed_data
+      && python -m app.es_index
+      && python -m app.es_sync"
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-docker.m.daocloud.io/library/python:3.11-slim}
+    image: ${APP_IMAGE:-simplees-app:local}
+    container_name: simplees-app
+    restart: unless-stopped
+    depends_on:
+      app-init:
+        condition: service_completed_successfully
+    environment: *app-environment
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "${APP_PORT:-8000}:8000"
+
+  rabbitmq-consumer:
+    image: ${APP_IMAGE:-simplees-app:local}
+    container_name: simplees-rabbitmq-consumer
+    restart: unless-stopped
+    depends_on:
+      app-init:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      canal:
+        condition: service_started
+    environment: *app-environment
+    command: python -m app.rabbitmq_consumer
+
+volumes:
+  simplees_mysql_data:
+  simplees_es_data:
+  simplees_rabbitmq_data:
+  simplees_canal_logs:
